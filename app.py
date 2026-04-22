@@ -3,7 +3,6 @@ import os
 
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_openai import ChatOpenAI
 
 # ---------------- PAGE CONFIG ---------------- #
 st.set_page_config(page_title="FM AI Assistant", layout="wide")
@@ -43,7 +42,7 @@ h1, h2, h3 {
 st.sidebar.title("🏢 FM AI System")
 st.sidebar.markdown("Facility Management Assistant")
 
-# Department Mapping (NEW)
+# System Mapping (All Departments)
 system_map = {
     "All": "All",
     "HVAC": "hvac",
@@ -64,12 +63,8 @@ selected_label = st.sidebar.selectbox("Select System", list(system_map.keys()))
 system_filter = system_map[selected_label]
 
 # ---------------- EMBEDDINGS ---------------- #
-embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-
-# ---------------- LLM ---------------- #
-llm = ChatOpenAI(
-    model="gpt-4o-mini",
-    temperature=0.2
+embeddings = HuggingFaceEmbeddings(
+    model_name="all-MiniLM-L6-v2"
 )
 
 DB_PATH = "vectorstore/"
@@ -97,52 +92,55 @@ st.markdown("### AI-powered Facility Management System")
 # ---------------- INPUT ---------------- #
 query = st.text_input("🔍 Ask your question")
 
-# ---------------- AI FUNCTION ---------------- #
-def generate_ai_response(docs, query):
-    context = "\n\n".join([doc.page_content for doc in docs])
+# ---------------- SMART SEARCH FUNCTION ---------------- #
+def generate_response(docs):
+    combined = " ".join([doc.page_content for doc in docs])
+    sentences = combined.split(".")
 
-    prompt = f"""
-You are a senior Facility Management Engineer working in a corporate building like DLF Cyber Park.
+    insights = []
+    for s in sentences:
+        s = s.strip()
+        if len(s) > 40:
+            insights.append(s)
+        if len(insights) >= 3:
+            break
 
-Use the given maintenance manuals to answer professionally.
-
-Context:
-{context}
-
-Question:
-{query}
-
-Give response in this format:
-
-1. Problem Diagnosis  
-2. Top Causes (max 3)  
-3. Recommended Actions (step-wise)
-
-Keep answer clear, practical and technical.
-"""
-
-    response = llm.invoke(prompt)
-    return response.content
+    return insights
 
 # ---------------- MAIN ---------------- #
 if query:
     docs = vectorstore.similarity_search(query, k=5)
 
-    # Apply system filter
+    # Apply filter
     if system_filter != "All":
         docs = [doc for doc in docs if doc.metadata.get("system") == system_filter]
 
     if not docs:
         st.error("❌ No relevant data found")
     else:
+        # Diagnosis Section
         st.subheader("🧠 AI Diagnosis")
 
-        with st.spinner("Analyzing issue..."):
-            answer = generate_ai_response(docs, query)
+        insights = generate_response(docs)
 
-        st.markdown(answer)
+        for i, point in enumerate(insights, 1):
+            st.markdown(f"""
+            <div class="card">
+                <b>{i}. {point}</b>
+            </div>
+            """, unsafe_allow_html=True)
 
-        # ---------------- SOURCES ---------------- #
+        # Recommended Action (Static but useful)
+        st.subheader("⚙️ Recommended Action")
+
+        st.info("""
+        • Check system parameters  
+        • Inspect sensors / controllers  
+        • Verify mechanical & electrical connections  
+        • Refer OEM manual if issue persists  
+        """)
+
+        # Source Section
         st.subheader("📌 Source Documents")
 
         shown = set()
