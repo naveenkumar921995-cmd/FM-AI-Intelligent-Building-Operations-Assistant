@@ -14,15 +14,28 @@ st.markdown("""
     background-color: #0e1117;
     color: white;
 }
+
+/* Card style FIXED */
 .card {
     padding: 15px;
     border-radius: 10px;
     background-color: #1c1f26;
     margin-bottom: 10px;
+    color: #ffffff;   /* 👈 FIX: force white text */
+    font-size: 16px;
+}
+
+/* Improve headings */
+h1, h2, h3 {
+    color: #ffffff;
+}
+
+/* Sidebar */
+section[data-testid="stSidebar"] {
+    background-color: #111;
 }
 </style>
 """, unsafe_allow_html=True)
-
 # ---------------- SIDEBAR ---------------- #
 st.sidebar.title("🏢 FM AI System")
 st.sidebar.markdown("Intelligent Facility Assistant")
