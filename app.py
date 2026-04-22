@@ -1,5 +1,7 @@
 import streamlit as st
 import os
+import pandas as pd
+import uuid
 
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
@@ -7,145 +9,118 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 # ---------------- PAGE CONFIG ---------------- #
 st.set_page_config(page_title="FM AI Assistant", layout="wide")
 
-# ---------------- CORPORATE STYLE ---------------- #
+# ---------------- STYLE ---------------- #
 st.markdown("""
 <style>
-.main {
-    background-color: #f7f9fc;
-    color: #1f2937;
-}
-
-section[data-testid="stSidebar"] {
-    background-color: #eef2f7;
-}
-
-section[data-testid="stSidebar"] * {
-    color: #1f2937 !important;
-}
-
+.main { background-color: #f7f9fc; color: #1f2937; }
 .card {
     padding: 15px;
     border-radius: 8px;
     background-color: #ffffff;
     border: 1px solid #d1d5db;
     margin-bottom: 10px;
-    color: #1f2937;
-}
-
-h1, h2, h3 {
-    color: #1e3a8a;
 }
 </style>
 """, unsafe_allow_html=True)
 
 # ---------------- SIDEBAR ---------------- #
 st.sidebar.title("🏢 FM AI System")
-st.sidebar.markdown("Facility Management Assistant")
 
-# System Mapping (All Departments)
+menu = st.sidebar.radio("Navigation", ["AI Assistant", "Raise Ticket", "View Tickets"])
+
+# ---------------- SYSTEM MAP ---------------- #
 system_map = {
-    "All": "All",
     "HVAC": "hvac",
-    "Fire System": "fire",
+    "Fire": "fire",
     "Electrical": "electrical",
-    "DG System": "dg",
-    "STP Plant": "stp",
-    "WTP Plant": "wtp",
-    "Lift / Elevators": "lift",
+    "DG": "dg",
+    "STP": "stp",
+    "WTP": "wtp",
+    "Lift": "lift",
     "CCTV": "cctv",
     "Access Control": "access_control",
-    "Soft Services": "soft_services",
-    "BMS": "bms",
-    "Plumbing": "plumbing"
+    "Soft Services": "soft_services"
 }
 
-selected_label = st.sidebar.selectbox("Select System", list(system_map.keys()))
-system_filter = system_map[selected_label]
-
 # ---------------- EMBEDDINGS ---------------- #
-embeddings = HuggingFaceEmbeddings(
-    model_name="all-MiniLM-L6-v2"
-)
-
+embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 DB_PATH = "vectorstore/"
 
-# ---------------- LOAD VECTOR DB ---------------- #
 @st.cache_resource
 def load_vectorstore():
-    if not os.path.exists(DB_PATH):
-        st.warning("⚠️ Creating knowledge base...")
-
-        from src.ingestion.ingest import load_documents, split_documents, create_vectorstore
-
-        docs = load_documents()
-        chunks = split_documents(docs)
-        create_vectorstore(chunks)
-
     return FAISS.load_local(DB_PATH, embeddings, allow_dangerous_deserialization=True)
 
 vectorstore = load_vectorstore()
 
-# ---------------- HEADER ---------------- #
-st.title("🏢 Intelligent Building Operations Assistant")
-st.markdown("### AI-powered Facility Management System")
+# ---------------- AI ASSISTANT ---------------- #
+if menu == "AI Assistant":
 
-# ---------------- INPUT ---------------- #
-query = st.text_input("🔍 Ask your question")
+    st.title("🤖 FM AI Assistant")
 
-# ---------------- SMART SEARCH FUNCTION ---------------- #
-def generate_response(docs):
-    combined = " ".join([doc.page_content for doc in docs])
-    sentences = combined.split(".")
+    system_label = st.selectbox("Select System", list(system_map.keys()))
+    system_filter = system_map[system_label]
 
-    insights = []
-    for s in sentences:
-        s = s.strip()
-        if len(s) > 40:
-            insights.append(s)
-        if len(insights) >= 3:
-            break
+    query = st.text_input("Ask your issue")
 
-    return insights
+    if query:
+        docs = vectorstore.similarity_search(query, k=5)
+        docs = [d for d in docs if d.metadata.get("system") == system_filter]
 
-# ---------------- MAIN ---------------- #
-if query:
-    docs = vectorstore.similarity_search(query, k=5)
+        st.subheader("Diagnosis")
 
-    # Apply filter
-    if system_filter != "All":
-        docs = [doc for doc in docs if doc.metadata.get("system") == system_filter]
-
-    if not docs:
-        st.error("❌ No relevant data found")
-    else:
-        # Diagnosis Section
-        st.subheader("🧠 AI Diagnosis")
-
-        insights = generate_response(docs)
-
-        for i, point in enumerate(insights, 1):
+        for i, doc in enumerate(docs[:3], 1):
             st.markdown(f"""
-            <div class="card">
-                <b>{i}. {point}</b>
-            </div>
+            <div class="card"><b>{i}. {doc.page_content}</b></div>
             """, unsafe_allow_html=True)
 
-        # Recommended Action (Static but useful)
-        st.subheader("⚙️ Recommended Action")
+# ---------------- RAISE TICKET ---------------- #
+elif menu == "Raise Ticket":
 
-        st.info("""
-        • Check system parameters  
-        • Inspect sensors / controllers  
-        • Verify mechanical & electrical connections  
-        • Refer OEM manual if issue persists  
-        """)
+    st.title("📝 Raise Complaint")
 
-        # Source Section
-        st.subheader("📌 Source Documents")
+    system = st.selectbox("System", list(system_map.keys()))
+    issue = st.text_input("Issue Title")
+    description = st.text_area("Detailed Description")
 
-        shown = set()
-        for doc in docs:
-            source = f"{doc.metadata.get('system')} | {doc.metadata.get('source_file')}"
-            if source not in shown:
-                st.write(f"• {source}")
-                shown.add(source)
+    if st.button("Submit Ticket"):
+
+        ticket_id = str(uuid.uuid4())[:8]
+
+        new_ticket = pd.DataFrame([{
+            "id": ticket_id,
+            "system": system,
+            "issue": issue,
+            "description": description,
+            "status": "Open"
+        }])
+
+        if os.path.exists("tickets.csv"):
+            df = pd.read_csv("tickets.csv")
+            df = pd.concat([df, new_ticket], ignore_index=True)
+        else:
+            df = new_ticket
+
+        df.to_csv("tickets.csv", index=False)
+
+        st.success(f"✅ Ticket Created! ID: {ticket_id}")
+
+# ---------------- VIEW TICKETS ---------------- #
+elif menu == "View Tickets":
+
+    st.title("📊 Ticket Dashboard")
+
+    if os.path.exists("tickets.csv"):
+        df = pd.read_csv("tickets.csv")
+
+        st.dataframe(df)
+
+        # Update status
+        ticket_id = st.text_input("Enter Ticket ID to Close")
+
+        if st.button("Close Ticket"):
+            df.loc[df["id"] == ticket_id, "status"] = "Closed"
+            df.to_csv("tickets.csv", index=False)
+            st.success("Ticket Closed")
+
+    else:
+        st.warning("No tickets found")
