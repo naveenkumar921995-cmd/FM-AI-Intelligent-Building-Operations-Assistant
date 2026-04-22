@@ -1,4 +1,5 @@
 import streamlit as st
+import os
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
 
@@ -19,7 +20,6 @@ embeddings = HuggingFaceEmbeddings(
 DB_PATH = "vectorstore/"
 
 @st.cache_resource
-import os
 
 def load_vectorstore():
     if not os.path.exists("vectorstore"):
