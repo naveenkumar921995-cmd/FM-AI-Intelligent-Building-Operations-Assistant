@@ -56,7 +56,7 @@ system_map = {
     "CCTV": "cctv",
     "Access Control": "access_control",
     "Soft Services": "soft_services",
-    "IBMS": "ibms",
+    "BMS": "bms",
     "Plumbing": "plumbing"
 }
 
