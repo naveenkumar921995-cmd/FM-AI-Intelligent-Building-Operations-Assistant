@@ -48,9 +48,33 @@ DB_PATH = "vectorstore/"
 
 @st.cache_resource
 def load_vectorstore():
-    return FAISS.load_local(DB_PATH, embeddings, allow_dangerous_deserialization=True)
+    if not os.path.exists(DB_PATH):
+        st.warning("⚠️ Vector DB not found. Creating now...")
 
-vectorstore = load_vectorstore()
+        from src.ingestion.ingest import load_documents, split_documents, create_vectorstore
+
+        docs = load_documents()
+
+        if not docs:
+            st.error("❌ No documents found in data folder")
+            st.stop()
+
+        chunks = split_documents(docs)
+        create_vectorstore(chunks)
+
+    # Extra safety check
+    try:
+        return FAISS.load_local(DB_PATH, embeddings, allow_dangerous_deserialization=True)
+    except Exception as e:
+        st.error("⚠️ Vector DB corrupted. Rebuilding...")
+
+        from src.ingestion.ingest import load_documents, split_documents, create_vectorstore
+
+        docs = load_documents()
+        chunks = split_documents(docs)
+        create_vectorstore(chunks)
+
+        return FAISS.load_local(DB_PATH, embeddings, allow_dangerous_deserialization=True)
 
 # ---------------- AI ASSISTANT ---------------- #
 if menu == "AI Assistant":
