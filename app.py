@@ -19,8 +19,19 @@ embeddings = HuggingFaceEmbeddings(
 DB_PATH = "vectorstore/"
 
 @st.cache_resource
+import os
+
 def load_vectorstore():
-    return FAISS.load_local(DB_PATH, embeddings, allow_dangerous_deserialization=True)
+    if not os.path.exists("vectorstore"):
+        st.warning("⚠️ Vector DB not found. Creating now...")
+
+        from src.ingestion.ingest import load_documents, split_documents, create_vectorstore
+
+        docs = load_documents()
+        chunks = split_documents(docs)
+        create_vectorstore(chunks)
+
+    return FAISS.load_local("vectorstore", embeddings, allow_dangerous_deserialization=True)
 
 vectorstore = load_vectorstore()
 
